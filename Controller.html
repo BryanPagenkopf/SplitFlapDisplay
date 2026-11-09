@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Split-Flap Controller</title>
+<style>
+:root { --bg:#0b0d10; --card:#14181d; --line:#252b33; --text:#e8ecf1; --mute:#8a94a3; --accent:#ffcf70; }
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { background: var(--bg); color: var(--text); font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; min-height: 100vh; }
+header { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; border-bottom: 1px solid var(--line); }
+header h1 { font-size: 18px; font-weight: 650; }
+.chip { font-size: 12px; padding: 4px 10px; border-radius: 99px; background: #1d2a1f; color: #6ee7a0; }
+main { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(340px, 1.2fr); gap: 20px; padding: 24px 28px; max-width: 1300px; margin: 0 auto; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } }
+.col { display: flex; flex-direction: column; gap: 20px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; }
+.card h2 { font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--mute); margin-bottom: 14px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.tab { padding: 6px 14px; border-radius: 8px; border: 1px solid var(--line); background: #0f1317; color: var(--text); cursor: pointer; font: inherit; }
+.tab.active { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+.tab.add { color: var(--accent); border-style: dashed; }
+textarea, input[type=number], input[type=text], input[type=datetime-local], select { width: 100%; background: #0f1317; color: var(--text); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; }
+textarea { font-family:'Courier New',monospace;font-size:16px;text-transform:uppercase;resize:vertical;min-height:170px; }
+.char-grid{display:flex;flex-direction:column;gap:7px;overflow:auto;padding:10px;background:#0f1317;border:1px solid var(--line);border-radius:8px;max-height:460px}.char-row{display:flex;gap:8px;align-items:center;width:max-content;min-height:44px}.char-row-cells{display:grid;gap:4px}.char-cell{position:relative;width:30px;height:42px}.char-input{width:30px!important;height:30px;padding:2px!important;text-align:center;text-transform:uppercase;font:700 16px/1 monospace!important;border-radius:5px!important}.char-color{position:absolute;left:3px;bottom:0;width:24px!important;height:8px!important;padding:0!important;border:0!important;border-radius:3px;overflow:hidden;cursor:pointer}.row-reset{margin-left:4px;padding:6px 9px;border-radius:6px;border:1px solid var(--line);background:#1b2128;color:var(--text);cursor:pointer}.count-parts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px;margin:8px 0 14px}
+input[type=datetime-local] { color-scheme: dark; }
+textarea:focus, input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+.hint { font-size: 12.5px; color: var(--mute); margin-top: 8px; }
+.hint.warn { color: #fbbf24; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+label { display: block; font-size: 13px; color: var(--mute); margin-bottom: 14px; }
+label > :not(span) { margin-top: 5px; }
+.swatches { display: flex; gap: 8px; align-items: center; margin-top: 6px; flex-wrap: wrap; }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; cursor: pointer; }
+.sw.on { border-color: #fff; }
+input[type=color] { width: 36px; height: 30px; border: none; background: none; padding: 0; cursor: pointer; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.check { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.check input { width: auto; margin: 0; }
+iframe { width: 100%; height: 340px; border: 1px solid var(--line); border-radius: 10px; background: #080808; }
+.btn { width: 100%; padding: 11px; margin-top: 8px; border-radius: 9px; border: 1px solid var(--line); background: #1b2128; color: var(--text); font: inherit; cursor: pointer; }
+.btn:hover { filter: brightness(1.2); }
+.btn.primary { background: var(--accent); color: #111; border-color: var(--accent); font-weight: 700; }
+.btn.danger { color: #f87171; }
+</style>
+</head>
+<body>
+<header><h1>Split-Flap Controller</h1><span class="chip" id="status">Live preview</span></header>
+<main>
+  <div class="col">
+    <section class="card">
+      <h2>Messages</h2>
+      <div class="tabs" id="tabs"></div>
+      <div id="charGrid" class="char-grid" aria-label="Message character and color grid"></div><textarea id="text" hidden spellcheck="false"></textarea>
+      <div class="hint" id="hint"></div>
+      <div class="tabs" style="margin-top:12px">
+        <span class="hint" style="margin:6px 4px 0 0">Insert clock:</span>
+        <button class="tab" data-tok="{time}">Time</button>
+        <button class="tab" data-tok="{time24}">24h time</button>
+        <button class="tab" data-tok="{date}">Date</button>
+        <button class="tab" data-tok="{tz}">Zone</button>
+      </div>
+      <div class="hint">Example row: TIME: {time} {tz}. Clock rows update on their own every second.</div>
+      <button class="btn danger" id="del">Delete this message</button>
+    </section>
+    <section class="card">
+      <h2>Countdown</h2>
+      <label><span>Target date and time (uses the time zone chosen under Appearance &amp; timing)</span>
+        <input type="datetime-local" id="cdTarget" />
+      </label>
+      <label><span>When it reaches zero, show (optional)</span>
+        <input type="text" id="cdDone" placeholder="Leave empty to show zeros" />
+      </label>
+      <div class="hint">Countdown units to display</div><div class="count-parts" id="countParts">
+<label class="check"><input type="checkbox" data-cdpart="years"> Years</label><label class="check"><input type="checkbox" data-cdpart="months"> Months</label><label class="check"><input type="checkbox" data-cdpart="weeks"> Weeks</label><label class="check"><input type="checkbox" data-cdpart="days"> Days</label><label class="check"><input type="checkbox" data-cdpart="hours"> Hours</label><label class="check"><input type="checkbox" data-cdpart="minutes"> Minutes</label><label class="check"><input type="checkbox" data-cdpart="seconds"> Seconds</label></div>
+      <div class="tabs"><span class="hint" style="margin:6px 4px 0 0">Insert:</span>
+        <button class="tab" data-tok="{countdown}">Countdown</button>
+        <button class="tab" data-tok="{days}">Days</button>
+        <button class="tab" data-tok="{hours}">Hours</button>
+        <button class="tab" data-tok="{minutes}">Minutes</button>
+        <button class="tab" data-tok="{seconds}">Seconds</button>
+      </div>
+      <div class="hint">Example row: LAUNCH IN {countdown}. It counts down on its own every second.</div>
+      <div class="hint" id="cdNow"></div>
+      <button class="btn danger" id="cdClear">Clear countdown</button>
+    </section>
+    <section class="card">
+      <h2>Appearance &amp; timing</h2>
+      <label><span>Text color</span>
+        <div class="swatches" id="swatches"></div>
+      </label>
+      <div class="grid2">
+        <label><span>Theme</span><select id="theme"><option value="solari">Solari (warm)</option><option value="neon">Neon (blue)</option><option value="thanksgiving">Thanksgiving</option><option value="christmas">Christmas</option></select></label>
+        <label><span>Sound</span><div class="check"><input type="checkbox" id="sound" /> Click sounds</div></label>
+        <label><span>Rows</span><input type="number" id="rows" min="1" max="20" /></label>
+        <label><span>Columns</span><input type="number" id="cols" min="1" max="60" /></label>
+      </div>
+      <div style="margin-bottom:14px;color:var(--mute);font-size:13px">
+        <span>Text alignment</span>
+        <div class="tabs" style="margin:6px 0 0">
+          <button class="tab" data-al="left">Left</button>
+          <button class="tab" data-al="center">Center</button>
+          <button class="tab" data-al="right">Right</button>
+        </div>
+      </div>
+      <label><span>Time zone for clock</span>
+        <select id="tz">
+          <option value="">This device's time zone</option>
+          <option value="America/New_York">Eastern (New York)</option>
+          <option value="America/Chicago">Central (Chicago)</option>
+          <option value="America/Denver">Mountain (Denver)</option>
+          <option value="America/Phoenix">Arizona (no daylight saving)</option>
+          <option value="America/Los_Angeles">Pacific (Los Angeles)</option>
+          <option value="America/Anchorage">Alaska</option>
+          <option value="Pacific/Honolulu">Hawaii</option>
+          <option value="UTC">UTC</option>
+          <option value="Europe/London">London</option>
+          <option value="Europe/Berlin">Central Europe (Berlin)</option>
+          <option value="Asia/Kolkata">India</option>
+          <option value="Asia/Tokyo">Tokyo</option>
+          <option value="Australia/Sydney">Sydney</option>
+        </select>
+        <div class="hint" id="tzNow"></div>
+      </label>
+      <label><span id="refLabel"></span><input type="range" id="refresh" min="2" max="120" /></label>
+      <div class="hint">With several messages, the display moves to the next one every refresh. It also re-checks for updates at that rate.</div>
+    </section>
+  </div>
+  <div class="col">
+    <section class="card">
+      <h2>Live preview</h2>
+      <iframe id="preview" src="Index.html?live=true" title="Display preview"></iframe>
+      <div class="hint">Shows index.html from the same folder. Edits appear instantly.</div>
+    </section>
+    <section class="card">
+      <h2>Send to a display</h2>
+      <button class="btn primary" id="open">Open display window</button>
+      <button class="btn" id="link">Copy kiosk link</button>
+      <button class="btn" id="file">Download display-config.json</button>
+      <div class="hint" id="note">Display window updates live while this page stays open. The kiosk link has your messages built in. For a screen that updates itself, host the JSON beside Index.html and open Index.html?config=display-config.json</div>
+    </section>
+  </div>
+</main>
+<script>
+const KEY='splitflap.controller.v1', COLORS=['#ffcf70','#f5f5f5','#38bdf8','#4ade80','#f87171','#c084fc'];
+const DEF={slides:['WELCOME\nTO THE DISPLAY'],active:0,rows:6,cols:28,textColor:'#ffcf70',theme:'solari',refresh:10,sound:false,align:'center',timeZone:'America/Chicago',countdown:'',countdownDone:'',countdownParts:{years:false,months:false,weeks:false,days:true,hours:true,minutes:true,seconds:true},cellColors:[]};
+let S={...DEF};try{S={...DEF,...JSON.parse(localStorage.getItem(KEY)||'{}')}}catch(e){};if(!S.countdownParts)S.countdownParts={...DEF.countdownParts};if(!Array.isArray(S.cellColors))S.cellColors=[];
+const $=id=>document.getElementById(id);let displayWin=null;
+function offsetMs(tz,ts){const p={};new Intl.DateTimeFormat('en-US',{timeZone:tz,year:'numeric',month:'numeric',day:'numeric',hour:'numeric',minute:'numeric',second:'numeric',hourCycle:'h23'}).formatToParts(new Date(ts)).forEach(x=>p[x.type]=x.value);return Date.UTC(+p.year,+p.month-1,+p.day,+p.hour,+p.minute,+p.second)-Math.floor(ts/1000)*1000}
+function zonedToEpoch(str,tz){const m=String(str).match(/^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/);if(!m)return null;const[y,mo,d,h,mi]=m.slice(1).map(Number);if(!tz)return new Date(y,mo-1,d,h,mi).getTime();const guess=Date.UTC(y,mo-1,d,h,mi);let ts=guess;for(let n=0;n<3;n++)ts=guess-offsetMs(tz,ts);return ts}
+function payload(){return{rows:+S.rows,cols:+S.cols,refresh:+S.refresh,theme:S.theme,sound:S.sound,textColor:S.textColor,align:S.align,timeZone:S.timeZone,countdownTarget:S.countdown?zonedToEpoch(S.countdown,S.timeZone):null,countdownDone:S.countdownDone,countdownParts:S.countdownParts,cellColors:S.cellColors,slides:S.slides.map(t=>t.split('\n'))}}
+function ensureColors(){if(!Array.isArray(S.cellColors[S.active]))S.cellColors[S.active]=[];for(let r=0;r<S.rows;r++){if(!Array.isArray(S.cellColors[S.active][r]))S.cellColors[S.active][r]=[];for(let c=0;c<S.cols;c++)if(!S.cellColors[S.active][r][c])S.cellColors[S.active][r][c]=''}}
+function getLines(){const a=S.slides[S.active].split('\n');while(a.length<S.rows)a.push('');return a}
+function setChar(r,c,v){const a=getLines(),ch=(a[r]||'').padEnd(S.cols,' ').slice(0,S.cols).split('');ch[c]=(v||' ').slice(-1).toUpperCase();a[r]=ch.join('').replace(/\s+$/,'');S.slides[S.active]=a.join('\n').replace(/\n+$/,'');$('text').value=S.slides[S.active]}
+function focusCell(r,c){const x=$('charGrid').querySelector(`.char-input[data-row="${r}"][data-col="${c}"]`);if(x)x.focus()}
+function renderCharGrid(){ensureColors();const g=$('charGrid'),lines=getLines();g.innerHTML='';for(let r=0;r<S.rows;r++){const row=document.createElement('div');row.className='char-row';const cells=document.createElement('div');cells.className='char-row-cells';cells.style.gridTemplateColumns=`repeat(${S.cols},30px)`;row.append(cells);for(let c=0;c<S.cols;c++){const wrap=document.createElement('div');wrap.className='char-cell';const inp=document.createElement('input');inp.type='text';inp.maxLength=1;inp.className='char-input';inp.value=(lines[r]||'')[c]||'';inp.dataset.row=r;inp.dataset.col=c;inp.setAttribute('aria-label',`Row ${r+1}, column ${c+1}`);inp.onfocus=()=>{g.dataset.activeRow=r;g.dataset.activeCol=c};inp.oninput=e=>{const val=e.target.value;setChar(r,c,val);push();if(val){if(c+1<S.cols)focusCell(r,c+1);else if(r+1<S.rows)focusCell(r+1,0)}};inp.onkeydown=e=>{let nr=r,nc=c;if(e.key==='Backspace'){e.preventDefault();if(inp.value){inp.value='';setChar(r,c,'');push()}if(c>0)nc--;else if(r>0){nr--;nc=S.cols-1}else return;focusCell(nr,nc);return}if(e.key==='ArrowLeft'){if(c>0)nc--;else if(r>0){nr--;nc=S.cols-1}else return}else if(e.key==='ArrowRight'){if(c+1<S.cols)nc++;else if(r+1<S.rows){nr++;nc=0}else return}else if(e.key==='ArrowUp'){if(r>0)nr--;else return}else if(e.key==='ArrowDown'){if(r+1<S.rows)nr++;else return}else return;e.preventDefault();focusCell(nr,nc)};const color=document.createElement('input');color.type='color';color.className='char-color';color.value=S.cellColors[S.active][r][c]||S.textColor;color.title=`Custom color for row ${r+1}, column ${c+1}`;color.oninput=e=>{S.cellColors[S.active][r][c]=e.target.value;inp.style.color=e.target.value;push()};if(S.cellColors[S.active][r][c])inp.style.color=S.cellColors[S.active][r][c];wrap.append(inp,color);cells.append(wrap)}const reset=document.createElement('button');reset.type='button';reset.className='row-reset';reset.textContent='Reset';reset.title=`Return row ${r+1} colors to theme`;reset.onclick=()=>{S.cellColors[S.active][r]=Array(S.cols).fill('');renderCharGrid();push()};row.append(reset);g.append(row)}}
+function insertToken(tok){const g=$('charGrid');let r=+(g.dataset.activeRow||0),c=+(g.dataset.activeCol||0);for(const ch of tok){if(r>=S.rows)break;setChar(r,c,ch);if(++c>=S.cols){c=0;r++}}renderCharGrid();push();if(r<S.rows)focusCell(r,c)}
+function push(){try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}const msg={type:'splitflap-config',config:payload()},f=$('preview').contentWindow;if(f)f.postMessage(msg,'*');if(displayWin&&!displayWin.closed)displayWin.postMessage(msg,'*');hint()}
+function hint(){const lines=S.slides[S.active].split('\n'),h=$('hint');const bad=lines.length>S.rows||lines.some(l=>l.length>S.cols);h.className='hint'+(bad?' warn':'');h.textContent=`${S.cols} characters wide, ${S.rows} rows.`+(bad?' Extra content will be cut off.':'');const tgt=S.countdown?zonedToEpoch(S.countdown,S.timeZone):null;$('cdNow').textContent=tgt===null?'No countdown set.':(tgt<=Date.now()?'The target time has passed.':`Remaining: ${Math.floor((tgt-Date.now())/86400000)}d`);$('refLabel').textContent=`Refresh rate: every ${S.refresh} seconds`;try{$('tzNow').textContent='Right now there: '+new Intl.DateTimeFormat('en-US',{timeZone:S.timeZone||undefined,hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date())}catch(e){}}
+function render(){const t=$('tabs');t.innerHTML='';S.slides.forEach((_,i)=>{const b=document.createElement('button');b.className='tab'+(i===S.active?' active':'');b.textContent='Message '+(i+1);b.onclick=()=>{S.active=i;render()};t.append(b)});const add=document.createElement('button');add.className='tab add';add.textContent='+ Add';add.onclick=()=>{S.slides.push('');S.cellColors.push([]);S.active=S.slides.length-1;render();push()};t.append(add);$('text').value=S.slides[S.active];$('del').style.display=S.slides.length>1?'':'none';$('theme').value=S.theme;$('rows').value=S.rows;$('cols').value=S.cols;$('refresh').value=S.refresh;$('sound').checked=S.sound;$('tz').value=S.timeZone;$('cdTarget').value=S.countdown;$('cdDone').value=S.countdownDone;document.querySelectorAll('[data-cdpart]').forEach(x=>x.checked=!!S.countdownParts[x.dataset.cdpart]);document.querySelectorAll('[data-al]').forEach(b=>b.classList.toggle('active',b.dataset.al===S.align));const sw=$('swatches');sw.innerHTML='';COLORS.forEach(v=>{const d=document.createElement('div');d.className='sw'+(v.toLowerCase()===S.textColor.toLowerCase()?' on':'');d.style.background=v;d.onclick=()=>{S.textColor=v;render();push()};sw.append(d)});const pick=document.createElement('input');pick.type='color';pick.value=S.textColor;pick.oninput=()=>{S.textColor=pick.value;push()};pick.onchange=render;sw.append(pick);renderCharGrid();hint()}
+$('del').onclick=()=>{S.slides.splice(S.active,1);S.cellColors.splice(S.active,1);S.active=Math.max(0,S.active-1);render();push()};document.querySelectorAll('[data-al]').forEach(b=>b.onclick=()=>{S.align=b.dataset.al;render();push()});$('cdTarget').oninput=e=>{S.countdown=e.target.value;push()};$('cdDone').oninput=e=>{S.countdownDone=e.target.value;push()};$('cdClear').onclick=()=>{S.countdown='';S.countdownDone='';render();push()};$('tz').onchange=e=>{S.timeZone=e.target.value;push()};document.querySelectorAll('[data-tok]').forEach(b=>b.onclick=()=>insertToken(b.dataset.tok));document.querySelectorAll('[data-cdpart]').forEach(x=>x.onchange=()=>{S.countdownParts[x.dataset.cdpart]=x.checked;push()});$('theme').onchange=e=>{S.theme=e.target.value;push()};$('sound').onchange=e=>{S.sound=e.target.checked;push()};$('rows').oninput=e=>{S.rows=Math.min(20,Math.max(1,+e.target.value||1));renderCharGrid();push()};$('cols').oninput=e=>{S.cols=Math.min(60,Math.max(1,+e.target.value||1));renderCharGrid();push()};$('refresh').oninput=e=>{S.refresh=+e.target.value;push()};$('open').onclick=()=>{displayWin=window.open('Index.html?live=true','splitflap-display');setTimeout(push,800)};$('link').onclick=async()=>{const u=new URL('Index.html',location.href);u.searchParams.set('data',btoa(unescape(encodeURIComponent(JSON.stringify(payload())))));u.searchParams.set('controls','false');try{await navigator.clipboard.writeText(u.toString());$('note').textContent='Kiosk link copied.'}catch(e){prompt('Copy this kiosk link:',u.toString())}};$('file').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(payload(),null,2)],{type:'application/json'}));a.download='display-config.json';a.click();URL.revokeObjectURL(a.href)};$('preview').addEventListener('load',()=>setTimeout(push,300));setInterval(hint,1000);render();
+</script>
+</body>
+</html>
